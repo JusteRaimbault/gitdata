@@ -1,0 +1,131 @@
+#!/bin/sh
+
+# git data management and backup utility
+
+# TODO : ssh remote
+# TODO : multiple backup destinations within subfolders
+# TODO : solution for gitignore ?
+# TODO commit option
+# TODO does not delete remote files on local delete
+
+REMOTE=""
+#GHOST="TRUE"
+ORIGIN=`pwd`
+
+function usage()
+{
+    echo "git data management and backup utility"
+    echo ""
+    echo "git data"
+    echo "\t-h --help"
+    echo "\t--remote=remote"
+    #echo "\t--ghost=TRUE|FALSE"
+    echo ""
+}
+
+while [ "$1" != "" ]; do
+    PARAM=`echo $1 | awk -F= '{print $1}'`
+    VALUE=`echo $1 | awk -F= '{print $2}'`
+    case $PARAM in
+        -h | --help)
+            usage
+            exit
+            ;;
+        --remote)
+            REMOTE=$VALUE
+            ;;
+        --ghost)
+            GHOST=$VALUE
+            ;;
+        *)
+            echo "ERROR: unknown parameter \"$PARAM\""
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+
+# check that in git repo, if not stops, if yes get relative path
+ISGIT=`git rev-parse`
+if [ "$ISGIT" != "" ]
+then
+    echo "ERROR : not a git repository"
+    exit 1
+fi
+
+TOPLEVEL=`git rev-parse --show-toplevel`
+RELPATH=`pwd | awk -F$TOPLEVEL '{print $2}'`
+
+echo "Relative path within repo is $RELPATH"
+
+# check that .gitdata file exists, if not and remote is set creates it
+if [ ! -f ".gitdata" ]
+then
+    if [ "$REMOTE" = "" ]
+    then
+        echo "Initializing without remote : please provide a remote or create .gitdata file"
+        exit
+    else
+        echo "REMOTE=$REMOTE" > .gitdata
+    fi
+else
+    # read remote from .gitdata
+    REMOTE=`cat .gitdata | grep REMOTE | awk -F= '{print $2}'`
+fi
+
+echo "Remote repository is $REMOTE"
+
+#########
+## backup
+#  rq : works only on local remotes ; would need to add host parsing etc to be able to upload
+
+# create remote repo if not exists
+if [ ! -z "$REMOTE" ]
+then
+    mkdir "$REMOTE"
+fi
+
+echo "$REMOTE$RELPATH"
+if [ ! -z "$REMOTE$RELPATH" ]
+then
+    mkdir -p "$REMOTE$RELPATH"
+fi
+
+
+# copy local files on remote
+ls -lR | grep ./ | awk -F: '{print $1}' | awk -F. '{print $2}' > .subdirs.tmp
+echo "" >> .subdirs.tmp
+while read subdir
+do
+    cd "$ORIGIN$subdir"
+    echo "backup subdir "`pwd`
+    if [ ! -f .gitignore ]
+    then
+      touch .gitignore
+    fi
+    #ls -p | grep -v / | awk '{print "cp "$1" $REMOTE$RELPATH/$subdir"}' | sh
+    ls -p | grep -v / | grep -v -f .gitignore | awk '{print $1}' > .files.tmp
+
+    if [ ! -z "$REMOTE$RELPATH$subdir" ]
+    then
+        mkdir -p "$REMOTE$RELPATH$subdir/"
+    fi
+    while read file
+    do
+        cp $file "$REMOTE$RELPATH$subdir"
+        echo $file
+        echo $file >> .gitignore
+        # TODO repeating in gitignore ? cannot erase it
+        #  -> YES but user cannot put self-defined files in ignore
+        touch .$file
+        rm $file
+        ln -s "$REMOTE$RELPATH$subdir/$file" "`pwd`/$file"
+    done < .files.tmp
+    cp .gitignore "$REMOTE$RELPATH$subdir"
+    rm .files.tmp
+    cd $ORIGIN
+done < .subdirs.tmp
+
+rm .subdirs.tmp
