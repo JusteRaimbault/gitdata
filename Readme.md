@@ -23,3 +23,4 @@ Ghost files (prefixed .) are created to be seen by other instances of the repo.
 * solution for gitignore ?
 * commit option
 * does not delete remote files on local delete
+* metadata management ? -> difficult in shell
