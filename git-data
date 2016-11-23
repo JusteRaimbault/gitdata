@@ -95,7 +95,7 @@ fi
 
 
 # copy local files on remote
-ls -lR | grep ./ | awk -F: '{print $1}' | awk -F. '{print $2}' > .subdirs.tmp
+ls -lR | grep ./ | grep -v -f .gitignore | awk -F: '{print $1}' | awk -F. '{print $2}' > .subdirs.tmp
 echo "" >> .subdirs.tmp
 while read subdir
 do
@@ -120,6 +120,7 @@ do
         # TODO repeating in gitignore ? cannot erase it
         #  -> YES but user cannot put self-defined files in ignore
         touch .$file
+        cp ".$file" "$REMOTE$RELPATH$subdir"
         rm $file
         ln -s "$REMOTE$RELPATH$subdir/$file" "`pwd`/$file"
     done < .files.tmp
